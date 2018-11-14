@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 
 from Area import areaThreshold_by_havg
-from _8connected import get_8connected_v2
+from _8connected_method import get_8connected_v2
 from util import otsu_threshold, cal_segment_area
 
 rm_detail = open('log.txt', 'a')

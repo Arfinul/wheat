@@ -213,7 +213,7 @@ def flood_filling(mask1):
 
 
 def watershed(thresh):
-    from _8connected import get_8connected_v2
+    from _8connected_method import get_8connected_v2
     h, w = thresh.shape
     val = 1
     thresh = padding2D_zero(thresh, val)
