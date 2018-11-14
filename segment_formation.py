@@ -15,7 +15,7 @@ def segment_image4(img_file, dlog=0):
     h, w = org.shape[:2]
 
     img = org.copy()
-    print "Reading ", time.time() - t0
+    print("Reading ", time.time() - t0)
     t0 = time.time()
 
     # removing noise by using Non-local Means Denoising algorithm
@@ -23,7 +23,7 @@ def segment_image4(img_file, dlog=0):
     cv2.imwrite("1_noise_removed_image.png", img)
     # img = cv2.resize(img, (1000, 500))
     # cv2.imshow('cleaned', img)
-    print "noise removing ", time.time() - t0
+    print("noise removing ", time.time() - t0)
     # cv2.waitKey(1)
 
     t0 = time.time()
@@ -36,7 +36,7 @@ def segment_image4(img_file, dlog=0):
 
     # calculating threshold value by using otsu thresholding
     T = otsu_threshold(gray=gray)
-    print "threshold calc ", time.time() - t0
+    print("threshold calc ", time.time() - t0)
     t0 = time.time()
 
     # generating a threshold image
@@ -46,10 +46,10 @@ def segment_image4(img_file, dlog=0):
     # cv2.imshow('Threshold', thresh)
     # cv2.waitKey(0)
     cv2.imwrite('3_Threshold_image.png', thresh)
-    print "Generating Threshold ", time.time() - t0
+    print("Generating Threshold ", time.time() - t0)
 
     ########################## 1st level of segmentation ########################################
-    print "\n Level 1 segmentation"
+    print("\n Level 1 segmentation")
 
     # generating a mask using 8-connected component method on threshold image
     mask = get_8connected_v2(thresh, mcount=5)
@@ -79,7 +79,7 @@ def segment_image4(img_file, dlog=0):
             s1count += 1
             # if dlog == 1: rm_detail.write(str(rm)+'\n')
             # cv2.imwrite('/media/zero/41FF48D81730BD9B/kisannetwork/removed/'+img_file.split('/')[-1].split(['.'])[0]+'_l1_'+str(s1count), get_img_value_inRange(org, mask, i, s[i]))
-    print "\n\t%d Number of segment rejected out of %d in L1 segmentation" % (s1count, total)
+    print("\n\t%d Number of segment rejected out of %d in L1 segmentation" % (s1count, total))
     if dlog == 1:
         rm_detail.write("\n\t%d Number of segment rejected out of %d in L1 segmentation\n" % (s1count, total))
     # print " Level 1 segmentation Finished",time.time()-t0

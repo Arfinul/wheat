@@ -11,7 +11,7 @@ def areaThreshold_by_avg(axis, exp):
 def areaThreshold_by_havg(axis, exp):
     areas = np.sort([(s[1] - s[0]) * (s[3] - s[2]) for i, s in axis.items()])
     alen = len(areas)
-    avga = np.average([areas[i] for i in range(alen / 2 ** exp, int(alen * (1 - 1.0 / 2 ** exp)))])
+    avga = np.average([areas[i] for i in range(alen // 2 ** exp, int(alen * (1 - 1.0 // 2 ** exp)))])
     low = avga / 2 ** exp
     high = avga * 2 ** exp
     return low, high
@@ -30,6 +30,6 @@ if __name__ == '__main__':
 
     # print time.time()
     t0 = time.time()
-    print time.time() - t0
+    print(time.time() - t0)
     time.sleep(3)
-    print time.time() - t0
+    print(time.time() - t0)
