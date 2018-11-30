@@ -5,10 +5,11 @@ model_2_class/*
 !model_2_class/ignore.txt
 model_5_class/*
 !model_5_class/ignore.txt
-test_data
+wheat_test_dataset
+!wheat_test_dataset/ignore.txt
+wheat_train_dataset/*
+!wheat_train_dataset/ignore.txt
 /__pycache__
 /.idea
-/*jpg
+*jpg
 *.pyc
-
-
