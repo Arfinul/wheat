@@ -1,4 +1,4 @@
-import numpy as np, cv2
+import numpy as np, cv2, os
 
 color = {i: np.random.randint(20, 255, 3) for i in range(3, 100000)}
 color[1] = [255, 255, 255]
@@ -6,53 +6,29 @@ color[2] = [0, 0, 255]
 
 
 def get_boundry_as_points(thresh):
-    line = []
-    h, w = thresh.shape
-    border = np.zeros((h, w), dtype=np.uint8)
-    for i in range(w):
-        if thresh[0, i] > 0:
-            border[0, i] = thresh[0, i]
-        if thresh[h - 1, i] > 0:
-            border[h - 1, i] = thresh[h - 1, i]
-    for i in range(1, h):
-        if thresh[i, 0] > 0:
-            border[i, 0] = thresh[i, 0]
-        if thresh[i, w - 1] > 0:
-            border[i, w - 1] = thresh[i, w - 1]
-        for j in range(1, w):
-            if int(thresh[i, j]) - thresh[i, j - 1] > 0 or int(thresh[i, j]) - thresh[i - 1, j] > 0:
-                border[i, j] = thresh[i, j]
-            elif int(thresh[i, j]) - thresh[i, j - 1] < 0:
-                border[i, j - 1] = thresh[i, j - 1]
-            if int(thresh[i, j]) - thresh[i - 1, j] < 0:
-                border[i - 1, j] = thresh[i - 1, j]
-    for i in range(h):
-        if border[i, int(w / 2)] != 0: break
-    start = (i, int(w / 2))
-    lstart = (i, int(w / 2))
-    line.append(list(lstart))
-    sign = [(-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1)]
-    ind = 1
-    slen = len(sign)
-    while 1:
-        count = 0
-        while 1:
-            if lstart[0] + sign[ind][0] < 0 or lstart[1] + sign[ind][1] < 0 or lstart[0] + sign[ind][0] > h - 1 or \
-                    lstart[1] + sign[ind][1] > w - 1:
-                ind = (ind + 1) % slen;
-                count += 1
-                continue
-            if (border[lstart[0] + sign[ind][0], lstart[1] + sign[ind][1]] == 0 and count < slen - 1):
-                ind = (ind + 1) % slen;
-                count += 1
-            else:
+    border = get_boundry_img_matrix(thresh, bval=255)
+    h, w = border.shape
+    i, j = np.unravel_index(np.argmax(border), (h, w))
+    border = padding2D_zero(border, 1)
+    start = (i, j)
+    itr = 0
+    sign = [(0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1)]
+    a = 0
+    points = [start]
+    while itr < h * w:
+        full = 8
+        while full:
+            if border[i + 1 + sign[a][0], j + 1 + sign[a][1]]:
+                points.append((i + sign[a][0], j + sign[a][1]))
+                i, j = i + sign[a][0], j + sign[a][1]
+                a = (a + 4 + 1) % 8
                 break
-        if (lstart[0] + sign[ind][0], lstart[1] + sign[ind][1]) == start:
+            a = (a + 1) % 8
+            full -= 1
+        if (i, j) == start:
             break
-        lstart = (lstart[0] + sign[ind][0], lstart[1] + sign[ind][1])
-        ind = (sign.index((-1 * sign[ind][0], -1 * sign[ind][1])) + 1) % slen
-        line.append(list(lstart))
-    return line
+    border = remove_padding2D_zero(border, 1)
+    return points
 
 
 def get_boundry_img_matrix(thresh, bval=1):
@@ -148,6 +124,18 @@ def sober_operation(img):
     return grad.astype(np.uint8)
 
 
+def edge_detection(img):
+    kernel = np.array([[1, 0, -1], [0, 0, 0], [-1, 0, 1]])
+    nimg = np.zeros(img.shape, dtype=np.uint8)
+    h, w = img.shape
+    img = padding2D_zero(img, 1)
+    for i in range(1, h):
+        for j in range(1, w):
+            nimg[i - 1, j - 1] = np.sum(img[i - 1:i + 2, j - 1:j + 2] * kernel)
+    img = remove_padding2D_zero(img, 1)
+    return remove_padding2D_zero(nimg, 1)
+
+
 def cal_segment_area(mask):
     h, w = mask.shape
     s = {}
@@ -170,6 +158,17 @@ def cal_segment_area(mask):
         s[m][1] += 1
         s[m][3] += 1
     return s
+
+
+# def mdilute(img, kernel=(3, 3)):
+#     img = padding2D_zero(img, 1)
+#     for i in range(1, h):
+#         for j in range(1, w):
+#             nz = np.count_nonzero(img[i - 1:i + 2, j - 1:j + 2])
+#             if nz > 2 or (nz == 1 and img[i, j] == 0):
+#                 img[i, j] = 255
+#     img = remove_padding2D_zero(img, 1)
+#     return img
 
 
 def flood_filling(mask1):
@@ -213,6 +212,98 @@ def flood_filling(mask1):
     return mask1
 
 
+def watershed(thresh):
+    from segmentation._8connected import get_8connected
+    h, w = thresh.shape
+    val = 1
+    thresh = padding2D_zero(thresh, val)
+    pareas = 0
+    ite = 100
+    kernel = [
+        [0, 0, 0],
+        [0, 0, 0],
+        [0, 0, 0], ]
+    while ite:
+        # points = []
+        count = 0
+        temp = thresh.copy()
+        for i in range(val, h + val):
+            for j in range(val, w + val):
+                if thresh[i, j] == 0 and np.any(thresh[i - val:i + val + 1, j - val:j + val + 1]):
+                    temp[i - val:i + val + 1, j - val:j + val + 1] *= kernel
+                    count += 1
+                # else:
+                #     points.append((i,j))
+        if ite % 2 == 0:
+            i = get_8connected(thresh)
+            areas = len(set(i.reshape(i.shape[0] * i.shape[1]).tolist())) - 1
+        # print pareas, areas
+        if count == 0 or pareas > areas:
+            # print count, pareas, areas
+            break
+        if ite % 2 == 0:
+            pthresh = thresh.copy()
+        thresh = temp.copy()
+        pareas = areas
+        # cv2.imshow('watershed %d' % (ite), thresh)
+        # cv2.waitKey(0)
+        ite -= 1
+    cv2.destroyAllWindows()
+    a = remove_padding2D_zero(pthresh, val)
+    return a
+
+
+def watershed2(thresh, mask_val):
+    h, w = thresh.shape
+    thresh = padding2D_zero(thresh, 4)
+    count = pcount = 0
+    ite = 20
+    while ite:
+        temp = thresh.copy()
+        for i in range(1, h + 1):
+            for j in range(1, w + 1):
+                if thresh[i, j] != mask_val and (thresh[i - 1:i + 2, j + 4] != 0).all():
+                    temp[i, j + 1] = mask_val
+                if thresh[i, j] != mask_val and (thresh[i - 1:i + 2, j - 4] != 0).all():
+                    temp[i, j - 1] = mask_val
+                if thresh[i, j] != mask_val and (thresh[i + 4, j - 1:j + 2] != 0).all():
+                    temp[i + 1, j] = mask_val
+                if thresh[i, j] != mask_val and (thresh[i - 4, j - 1:j + 2] != 0).all():
+                    temp[i - 1, j + 1] = mask_val
+                else:
+                    count += 1
+        thresh = temp.copy()
+        if count == pcount:
+            break
+        pcount = count
+        count = 0
+    thresh = remove_padding2D_zero(thresh, 4)
+    return thresh
+
+
+def watershed3(thresh, mask_val):
+    h, w = thresh.shape
+    thresh = padding2D_zero(thresh, 2)
+    ite = 20
+    k = np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]])
+    while ite:
+        temp = thresh.copy()
+        for i in range(1, h + 1):
+            for j in range(1, w + 1):
+                if thresh[i, j] == mask_val:
+                    temp[i - 1:i + 2, j - 1:j + 2] = mask_val * k
+                    if np.count_nonzero((thresh[i - 1:i + 2, j - 1:j + 2] != 0) * (
+                            thresh[i - 1:i + 2, j - 1:j + 2] != mask_val)) > 3:
+                        # temp = remove_padding2D_zero(temp, 1)
+                        # return temp
+                        continue
+        thresh = temp.copy()
+        # display_mask("sheded %d"%(ite),thresh)
+        # cv2.waitKey()
+    thresh = remove_padding2D_zero(thresh, 2)
+    return thresh
+
+
 def get_mask_value_area(img, mask, mval):
     h, w = img.shape
     iimg = np.zeros(img.shape, dtype=np.uint8)
@@ -224,7 +315,7 @@ def get_mask_value_area(img, mask, mval):
 
 
 def display_mask(name, mask, sname=None):
-    mask_section = formMarkimg(mask)
+    mask_section = formMaskimg(mask)
     cv2.imshow(name, mask_section)
     # cv2.waitKey()
     if sname:
@@ -232,7 +323,7 @@ def display_mask(name, mask, sname=None):
     return
 
 
-def formMarkimg(mask):
+def formMaskimg(mask):
     return np.array([[color[pixel] if pixel else [0, 0, 0] for pixel in row] for row in mask], dtype=np.uint8)
 
 
@@ -262,6 +353,20 @@ def boundry_fill(mask):
         ite -= 1
     mask = remove_padding2D_zero(mask, 1)
     return mask
+
+
+def get_files(indir):
+    indir = indir.rstrip('/')
+    flist = os.listdir(indir)
+    files = []
+    for f in flist:
+        f = indir + '/' + f
+        if os.path.isdir(f):
+            tfiles = get_files(f)
+            files += [tf for tf in tfiles]
+        else:
+            files.append(f)
+    return files
 
 
 def otsu_threshold(gray):
